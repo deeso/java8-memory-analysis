@@ -1,0 +1,34 @@
+java -jar ~/ptr_scan-0.0.1-SNAPSHOT-jar-with-dependencies.jar str2red strings.txt 10.16.121.14 6379 wmalware-a51f0 &
+java -jar ~/ptr_scan-0.0.1-SNAPSHOT-jar-with-dependencies.jar str2red strings.txt 10.16.121.14 6379 lmalware-a51f0 &
+
+
+
+python perform_multiprocess_ptr_scan_java.py ~/ptr_scan-0.0.1-SNAPSHOT-jar-with-dependencies.jar /research_data/malware_runs/win/malware-a51f0/java_dumps/ 4 1 10.16.121.14 6379 wmalware-a51f0
+python perform_multiprocess_ptr_scan_java_single_file.py ~/ptr_scan-0.0.1-SNAPSHOT-jar-with-dependencies.jar /research_data/malware_runs/win/malware-a51f0/java_dumps/ 4 1 10.16.121.14 6379 wmalware-a51f0 0xc7700000 0x0 0x0
+python perform_multiprocess_ptr_scan_java_single_file.py ~/ptr_scan-0.0.1-SNAPSHOT-jar-with-dependencies.jar /research_data/malware_runs/win/malware-a51f0/java_dumps/ 4 1 10.16.121.14 6379 wmalware-a51f0 0x81000000 0x0 0x0
+java -jar ~/ptr_scan-0.0.1-SNAPSHOT-jar-with-dependencies.jar str2red /research_data/malware_runs/win/malware-a51f0/strings.txt 10.16.121.14 6379 wmalware-a51f0
+
+python perform_multiprocess_ptr_scan_java.py ~/ptr_scan-0.0.1-SNAPSHOT-jar-with-dependencies.jar /research_data/malware_runs/lin/malware-a51f0/java_dumps/ 4 1 10.16.121.14 6379 lmalware-a51f0
+python perform_multiprocess_ptr_scan_java_single_file.py ~/ptr_scan-0.0.1-SNAPSHOT-jar-with-dependencies.jar /research_data/malware_runs/lin/malware-a51f0/java_dumps/ 4 1 10.16.121.14 6379 lmalware-a51f0 0xf8882000 0x0 0x0
+python perform_multiprocess_ptr_scan_java_single_file.py ~/ptr_scan-0.0.1-SNAPSHOT-jar-with-dependencies.jar /research_data/malware_runs/lin/malware-a51f0/java_dumps/ 4 1 10.16.121.14 6379 lmalware-a51f0 0xc0001000 0x0 0x0
+java -jar ~/ptr_scan-0.0.1-SNAPSHOT-jar-with-dependencies.jar str2red /research_data/malware_runs/lin/malware-a51f0/strings.txt 10.16.121.14 6379 lmalware-a51f0
+
+python perform_multiprocess_ptr_scan_java.py ~/ptr_scan-0.0.1-SNAPSHOT-jar-with-dependencies.jar /research_data/malware_runs/win/malware-d4765/java_dumps/ 4 1 10.16.121.14 6379 wmalware-d4765
+python perform_multiprocess_ptr_scan_java_single_file.py ~/ptr_scan-0.0.1-SNAPSHOT-jar-with-dependencies.jar /research_data/malware_runs/win/malware-d4765/java_dumps/ 4 1 10.16.121.14 6379 wmalware-d4765 0xc7700000 0x0 0x0
+python perform_multiprocess_ptr_scan_java_single_file.py ~/ptr_scan-0.0.1-SNAPSHOT-jar-with-dependencies.jar /research_data/malware_runs/win/malware-d4765/java_dumps/ 4 1 10.16.121.14 6379 wmalware-d4765 0x81000000 0x0 0x0
+java -jar ~/ptr_scan-0.0.1-SNAPSHOT-jar-with-dependencies.jar str2red /research_data/malware_runs/win/malware-d4765/strings.txt 10.16.121.14 6379 wmalware-d4765
+
+python perform_multiprocess_ptr_scan_java.py ~/ptr_scan-0.0.1-SNAPSHOT-jar-with-dependencies.jar /research_data/malware_runs/lin/malware-d4765/java_dumps/ 4 1 10.16.121.14 6379 lmalware-d4765
+python perform_multiprocess_ptr_scan_java_single_file.py ~/ptr_scan-0.0.1-SNAPSHOT-jar-with-dependencies.jar /research_data/malware_runs/lin/malware-d4765/java_dumps/ 4 1 10.16.121.14 6379 lmalware-d4765 0xf8882000 0x0 0x0
+python perform_multiprocess_ptr_scan_java_single_file.py ~/ptr_scan-0.0.1-SNAPSHOT-jar-with-dependencies.jar /research_data/malware_runs/lin/malware-d4765/java_dumps/ 4 1 10.16.121.14 6379 lmalware-d4765 0xc0001000 0x0 0x0
+java -jar ~/ptr_scan-0.0.1-SNAPSHOT-jar-with-dependencies.jar str2red /research_data/malware_runs/lin/malware-d4765/strings.txt 10.16.121.14 6379 lmalware-d4765
+
+python perform_multiprocess_ptr_scan_java.py ~/ptr_scan-0.0.1-SNAPSHOT-jar-with-dependencies.jar /research_data/malware_runs/win/malware-7ea16/java_dumps/ 4 1 10.16.121.14 6379 wmalware-7ea16
+python perform_multiprocess_ptr_scan_java_single_file.py ~/ptr_scan-0.0.1-SNAPSHOT-jar-with-dependencies.jar /research_data/malware_runs/win/malware-7ea16/java_dumps/ 4 1 10.16.121.14 6379 wmalware-7ea16 0xc7700000 0x0 0x0
+python perform_multiprocess_ptr_scan_java_single_file.py ~/ptr_scan-0.0.1-SNAPSHOT-jar-with-dependencies.jar /research_data/malware_runs/win/malware-7ea16/java_dumps/ 4 1 10.16.121.14 6379 wmalware-7ea16 0x81000000 0x0 0x0
+java -jar ~/ptr_scan-0.0.1-SNAPSHOT-jar-with-dependencies.jar str2red /research_data/malware_runs/win/malware-7ea16/strings.txt 10.16.121.14 6379 wmalware-7ea16
+
+python perform_multiprocess_ptr_scan_java.py ~/ptr_scan-0.0.1-SNAPSHOT-jar-with-dependencies.jar /research_data/malware_runs/lin/malware-7ea16/java_dumps/ 4 1 10.16.121.14 6379 lmalware-7ea16
+python perform_multiprocess_ptr_scan_java_single_file.py ~/ptr_scan-0.0.1-SNAPSHOT-jar-with-dependencies.jar /research_data/malware_runs/lin/malware-7ea16/java_dumps/ 4 1 10.16.121.14 6379 lmalware-7ea16 0xf8882000 0x0 0x0
+python perform_multiprocess_ptr_scan_java_single_file.py ~/ptr_scan-0.0.1-SNAPSHOT-jar-with-dependencies.jar /research_data/malware_runs/lin/malware-7ea16/java_dumps/ 4 1 10.16.121.14 6379 lmalware-7ea16 0xc0001000 0x0 0x0
+java -jar ~/ptr_scan-0.0.1-SNAPSHOT-jar-with-dependencies.jar str2red /research_data/malware_runs/lin/malware-7ea16/strings.txt 10.16.121.14 6379 lmalware-7ea16

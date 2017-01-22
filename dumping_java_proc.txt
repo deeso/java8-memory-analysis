@@ -1,0 +1,72 @@
+python vol.py -f /research_data/malware_runs/win/malware-d4765/java8.vmem -p 3432 volshell
+
+python vol.py -f /research_data/malware_runs/win/malware-7ea16/java8.vmem -p 3612 volshell
+sys.path.append("/research_data/code/git/extract-pointers/python_mod/")
+from mem_chunks import MemChunk
+chunks = MemChunk.chunks_from_task_or_file(task=proc(), MChunkCls=MemChunk)
+for chunk in chunks.values():
+    chunk.check_load()
+
+outdir = "/research_data/mem_forensics/malware_runs/win/9a51f0/java_dumps"
+
+for chunk in chunks.values():
+    chunk.dump_data(outdir=outdir)
+
+python vol.py -f /research_data/malware_runs/win/malware-96c70/java8.vmem -p 3896 volshell
+sys.path.append("/research_data/code/git/extract-pointers/python_mod/")
+from mem_chunks import MemChunk
+chunks = MemChunk.chunks_from_task_or_file(task=proc(), MChunkCls=MemChunk)
+for chunk in chunks.values():
+    chunk.check_load()
+
+outdir = "/research_data/malware_runs/win/malware-96c70/java_dumps"
+for chunk in chunks.values():
+    chunk.dump_data(outdir=outdir)
+
+python vol.py -f /research_data/malware_runs/win/malware-b9a13/java8.vmem -p 3008 volshell
+sys.path.append("/research_data/code/git/extract-pointers/python_mod/")
+from mem_chunks import MemChunk
+chunks = MemChunk.chunks_from_task_or_file(task=proc(), MChunkCls=MemChunk)
+for chunk in chunks.values():
+    chunk.check_load()
+
+outdir = "/research_data/malware_runs/win/malware-b9a13/java_dumps_loader"
+for chunk in chunks.values():
+    chunk.dump_data(outdir=outdir)
+
+
+python vol.py -f /research_data/malware_runs/win/malware-b9a13/java8.vmem -p 860 volshell
+sys.path.append("/research_data/code/git/extract-pointers/python_mod/")
+from mem_chunks import MemChunk
+chunks = MemChunk.chunks_from_task_or_file(task=proc(), MChunkCls=MemChunk)
+for chunk in chunks.values():
+    chunk.check_load()
+
+outdir = "/research_data/malware_runs/win/malware-b9a13/java_dumps_loaded"
+for chunk in chunks.values():
+    chunk.dump_data(outdir=outdir)
+
+
+python vol.py -f /research_data/malware_runs/win/malware-a51f0/java8.vmem -p 3672 volshell
+sys.path.append("/research_data/code/git/extract-pointers/python_mod/")
+from mem_chunks import MemChunk
+chunks = MemChunk.chunks_from_task_or_file(task=proc(), MChunkCls=MemChunk)
+for chunk in chunks.values():
+    chunk.check_load()
+
+outdir = "/research_data/malware_runs/win/malware-a51f0/java_dumps"
+for chunk in chunks.values():
+    chunk.dump_data(outdir=outdir)
+
+
+
+python vol.py -f /research_data/malware_runs/win/malware-a51f0/java8.vmem -p 1980 volshell
+sys.path.append("/research_data/code/git/extract-pointers/python_mod/")
+from mem_chunks import MemChunk
+chunks = MemChunk.chunks_from_task_or_file(task=proc(), MChunkCls=MemChunk)
+for chunk in chunks.values():
+    chunk.check_load()
+
+outdir = "/research_data/malware_runs/win/malware-a51f0/java_dumps_loader"
+for chunk in chunks.values():
+    chunk.dump_data(outdir=outdir)

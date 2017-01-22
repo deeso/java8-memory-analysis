@@ -1,0 +1,34 @@
+Need to install volatility and other (enumerate these) dependencies
+
+Using iPython
+
+
+
+Unzip memory dump:
+unzip -j -o memory-work.dump.zip
+vol.py --profile=LinuxUbuntu1504-whatx86 -f memory-work.dump  linux_pslist | grep java
+vol.py --profile=LinuxUbuntu1504-whatx86 -f memory-work.dump  linux_library_list -p 938 | grep libjvm
+
+Basic Usage in iPython:
+import sys, os, socket, struct
+from path_var import *
+from recoop import recoop_jvm8
+from jvm.mem_chunks import MemChunk
+from jvm.jvm_analysis import JVMAnalysis
+from jvm.jvm_systemdictionary import Dictionary
+from jvm.jvm_stringtable import StringTable
+from jvm.jvm_klassoop import Oop
+from jvm.jvm_objects import JavaThreadPartial, JavaFrameAnchor, Frame, VFrameArray
+
+
+profile = 'LinuxUbuntu1504-whatx86'
+dumps_dir = '/home/dso/recoop_analysis/HIGH_MED_HIGH_HIGH_5500_004/dumps/'
+dump_dir = '/home/dso/recoop_analysis/HIGH_MED_HIGH_HIGH_5500_004/memory-work.dump'
+dump_java_process=True
+dump_dir = '/home/dso/recoop_analysis/HIGH_MED_HIGH_HIGH_5500_004/memory-work.dump'
+recoop_jva5 = recoop_jvm8.RecOOPJVM8(path_to_dumps=dumps_dir, path_to_mem=dump_dir,jvm_start_addr=0x00b6725000, jvm_ver="8u60", dump_java_process=dump_java_process)
+
+recoop_jva5.next_step(profile=profile)
+recoop_jva5.next_step()
+recoop_jva5.next_step()
+recoop_jva5.next_step()
