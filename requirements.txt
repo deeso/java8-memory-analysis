@@ -1,0 +1,6 @@
+redis
+bitstring
+numpy
+future 
+pefile
+pyelftools
