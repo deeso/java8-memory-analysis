@@ -382,21 +382,22 @@ class RecOOPJVM8(recoop.RecOOPInterface):
         except:
             raise
 
-        if self.pid:
-            pid = self.pid
-        lookup_lib = False if self.libjvm['start'] else True
-        name = None if not pid is None else name
-        dump_file = self.path_to_mem
-        self.ex_java = ExtractProc(the_file=dump_file, profile=profile)
-        if pid or name:
-            ex_java.update_process_info(pid=pid, name=name, lookup_lib=lookup_lib)
-            if lookup_lib:
-                self.libjvm['start'] = self.lib_start
-
         if self.dump_java_process:
-            self.log ("Identifying the Java Process")
-            self.log ("Dumping Process Virtual Memory")
-            ex_java.dump_virtual_memory_form(self.dump_location)
+            if self.pid:
+                pid = self.pid
+            lookup_lib = False if self.libjvm['start'] else True
+            name = None if not pid is None else name
+            dump_file = self.path_to_mem
+            self.ex_java = ExtractProc(the_file=dump_file, profile=profile)
+            if pid or name:
+                ex_java.update_process_info(pid=pid, name=name, lookup_lib=lookup_lib)
+                if lookup_lib:
+                    self.libjvm['start'] = self.lib_start
+
+            if self.dump_java_process:
+                self.log ("Identifying the Java Process")
+                self.log ("Dumping Process Virtual Memory")
+                ex_java.dump_virtual_memory_form(self.dump_location)
 
 
         self.log ("Reading in all Memory Ranges")
