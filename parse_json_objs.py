@@ -3,7 +3,6 @@ def convert_json_map(json_obj):
     table = None
     if json_obj is None:
         return None
-
     if 'org/json/JSONObject' in json_obj.oop_field_values_by_name and 'map' in json_obj.oop_field_values_by_name['org/json/JSONObject']:
         m = json_obj.oop_field_values_by_name['org/json/JSONObject']['map']
         if m is None:
@@ -19,6 +18,7 @@ def convert_json_map(json_obj):
         key = node.get_oop_field_value('key')
         value = node.oop_field_values_by_name['java/util/HashMap$Node']['value']
         result[key] = convert_json_obj(value)
+        
     return result
 
 def convert_json_obj(json_obj):
@@ -36,6 +36,7 @@ def convert_json_obj(json_obj):
         except:
             print ("Failed to convert Json value")
             return None
+                
 
 def convert_json_array(json_obj):
     if json_obj is None:
@@ -44,7 +45,7 @@ def convert_json_array(json_obj):
     alist = None
     if 'org/json/JSONArray' in json_obj.oop_field_values_by_name and \
        'myArrayList' in json_obj.oop_field_values_by_name['org/json/JSONArray']:
-        _list = value.oop_field_values_by_name['org/json/JSONArray']['myArrayList']
+        _list = json_obj.oop_field_values_by_name['org/json/JSONArray']['myArrayList']
         if _list is None:
             return None
         elif not 'java/util/ArrayList' in _list.oop_field_values_by_name or \
@@ -52,7 +53,7 @@ def convert_json_array(json_obj):
              return None
         alist = _list.oop_field_values_by_name['java/util/ArrayList']['elementData']
     
-    for node in table.oop_values:
+    for node in alist.oop_values:
         if node is None:
             continue
         result.append(convert_json_obj(node))
