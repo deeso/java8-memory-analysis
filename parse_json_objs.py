@@ -22,7 +22,6 @@ def convert_json_map(json_obj):
     return result
 
 def convert_json_obj(json_obj):
-    print json_obj
     if json_obj is None:
         return None
     if 'org/json/JSONObject' in json_obj.oop_field_values_by_name and\
