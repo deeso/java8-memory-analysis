@@ -17,6 +17,9 @@ class RecOOPArray(list):
         self.__klass__ = None
         self.__mark_value__ = None
         self.__has_meta_data__ = False
+        logit = False# if oop_type.find('Hashtable') == -1 else True
+        if logit:
+            print("creating array for: %s @ 0x%08x"%(str(oop_type), self.addr))
 
     def has_meta_data(self):
         return self.__has_meta_data__
@@ -60,11 +63,16 @@ class RecOOPObject(object):
         self.__klass__ = None
         self.__mark_value__ = None
         self.__has_meta_data__ = False
-        self.addr = addr
-        self.all_fields_values = {}
-        self.fields = []
-        self.klass_fields = []
+        self.__addr = addr
+        self.__all_fields_values = {}
+        self.__fields = []
+        self.__klass_fields = []
         self.oop_type = oop_type
+    def get_addr(self):
+        return self.__addr
+
+    def get_fields(self):
+        return self.__fields
 
     def add_field(self, name, value):
         pvname = name
@@ -76,13 +84,13 @@ class RecOOPObject(object):
             setattr(self, pvname, value)
 
         setattr(self, name, value)
-        if not name in self.fields:
-            self.fields.append(name)
+        if not name in self.__fields:
+            self.__fields.append(name)
 
     def add_field_by_key(self, res_key, value):
-        if not res_key in self.klass_fields:
-            self.klass_fields.append(res_key)
-        self.all_fields_values[res_key] = value
+        if not res_key in self.__klass_fields:
+            self.__klass_fields.append(res_key)
+        self.__all_fields_values[res_key] = value
 
     def has_meta_data(self):
         return self.__has_meta_data__

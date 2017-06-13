@@ -49,7 +49,7 @@ class ByteOop(BaseOverlay):
 
     def python_value(self, bread_crumbs={}, **kargs):
         if not self.addr in bread_crumbs:
-            bread_crumbs[self.addr] = {'is_array':False,
+            bread_crumbs[self.addr] = {'ref_addrs':set(), 'is_array':False,
                                        'is_prim':True, 'value':{},
                                        'addr':self.addr}
         v = self.raw_value()
@@ -111,12 +111,20 @@ class CharOop(BaseOverlay):
 
     def python_value(self, bread_crumbs={}, **kargs):
         if not self.addr in bread_crumbs:
-            bread_crumbs[self.addr] = {'is_array':False,
+            bread_crumbs[self.addr] = {'ref_addrs':set(), 'is_array':False,
                                        'is_prim':True, 'value':{},
                                        'addr':self.addr}
         v = self.raw_value()
         bread_crumbs[self.addr]['value'] = v
         return v
+
+    def get_oop_field(self, field_name, klass_name=None):
+        return self.get_oop_field_value(field_name)
+
+    def get_oop_field_value(self, field_name, klass_name=None):
+        if field_name == 'value':
+            return self.raw_value()
+        raise Exception("%s has no field '%s'"%(self._name, field_name))
 
     @classmethod
     def from_bytes(cls, addr, _bytes, jvm_analysis):
@@ -164,7 +172,7 @@ class DoubleOop(BaseOverlay):
 
     def python_value(self, bread_crumbs={}, **kargs):
         if not self.addr in bread_crumbs:
-            bread_crumbs[self.addr] = {'is_array':False,
+            bread_crumbs[self.addr] = {'ref_addrs':set(), 'is_array':False,
                                        'is_prim':True, 'value':{},
                                        'addr':self.addr}
         v = self.raw_value()
@@ -224,7 +232,7 @@ class FloatOop(BaseOverlay):
 
     def python_value(self, bread_crumbs={}, **kargs):
         if not self.addr in bread_crumbs:
-            bread_crumbs[self.addr] = {'is_array':False,
+            bread_crumbs[self.addr] = {'ref_addrs':set(), 'is_array':False,
                                        'is_prim':True, 'value':{},
                                        'addr':self.addr}
         v = self.raw_value()
@@ -285,7 +293,7 @@ class IntOop(BaseOverlay):
 
     def python_value(self, bread_crumbs={}, **kargs):
         if not self.addr in bread_crumbs:
-            bread_crumbs[self.addr] = {'is_array':False,
+            bread_crumbs[self.addr] = {'ref_addrs':set(), 'is_array':False,
                                        'is_prim':True, 'value':{},
                                        'addr':self.addr}
         v = self.raw_value()
@@ -345,7 +353,7 @@ class LongOop(BaseOverlay):
 
     def python_value(self, bread_crumbs={}, **kargs):
         if not self.addr in bread_crumbs:
-            bread_crumbs[self.addr] = {'is_array':False,
+            bread_crumbs[self.addr] = {'ref_addrs':set(), 'is_array':False,
                                        'is_prim':True, 'value':{},
                                        'addr':self.addr}
         v = self.raw_value()
@@ -405,7 +413,7 @@ class ShortOop(BaseOverlay):
 
     def python_value(self, bread_crumbs={}, **kargs):
         if not self.addr in bread_crumbs:
-            bread_crumbs[self.addr] = {'is_array':False,
+            bread_crumbs[self.addr] = {'ref_addrs':set(), 'is_array':False,
                                        'is_prim':True, 'value':{},
                                        'addr':self.addr}
         v = self.raw_value()
@@ -466,7 +474,7 @@ class BoolOop(BaseOverlay):
     def python_value(self, bread_crumbs={}, **kargs):
         v = self.raw_value()
         if not self.addr in bread_crumbs:
-            bread_crumbs[self.addr] = {'is_array':False,
+            bread_crumbs[self.addr] = {'ref_addrs':set(), 'is_array':False,
                                        'is_prim':True, 'value':{},
                                        'addr':self.addr}
         v = self.raw_value()
@@ -529,7 +537,7 @@ class ByteArrayOop(BaseOverlay):
     def python_value(self, bread_crumbs={}, **kargs):
         v = self.raw_value()
         if not self.addr in bread_crumbs:
-            bread_crumbs[self.addr] = {'is_array':True,
+            bread_crumbs[self.addr] = {'ref_addrs':set(), 'is_array':True,
                                        'is_prim':True, 'value':{},
                                        'addr':self.addr}
         v = self.raw_value()
@@ -592,7 +600,7 @@ class CharArrayOop(BaseOverlay):
     def python_value(self, bread_crumbs={}, **kargs):
         v = self.raw_value()
         if not self.addr in bread_crumbs:
-            bread_crumbs[self.addr] = {'is_array':True,
+            bread_crumbs[self.addr] = {'ref_addrs':set(), 'is_array':True,
                                        'is_prim':True, 'value':{},
                                        'addr':self.addr}
         v = self.raw_value()
@@ -653,7 +661,7 @@ class DoubleArrayOop(BaseOverlay):
     def python_value(self, bread_crumbs={}, **kargs):
         v = self.raw_value()
         if not self.addr in bread_crumbs:
-            bread_crumbs[self.addr] = {'is_array':True,
+            bread_crumbs[self.addr] = {'ref_addrs':set(), 'is_array':True,
                                        'is_prim':True, 'value':{},
                                        'addr':self.addr}
         v = self.raw_value()
@@ -713,7 +721,7 @@ class FloatArrayOop(BaseOverlay):
 
     def python_value(self, bread_crumbs={}, **kargs):
         if not self.addr in bread_crumbs:
-            bread_crumbs[self.addr] = {'is_array':True,
+            bread_crumbs[self.addr] = {'ref_addrs':set(), 'is_array':True,
                                        'is_prim':True, 'value':{},
                                        'addr':self.addr}
         v = self.raw_value()
@@ -770,7 +778,7 @@ class IntArrayOop(BaseOverlay):
 
     def python_value(self, bread_crumbs={}, **kargs):
         if not self.addr in bread_crumbs:
-            bread_crumbs[self.addr] = {'is_array':True,
+            bread_crumbs[self.addr] = {'ref_addrs':set(), 'is_array':True,
                                        'is_prim':True, 'value':{},
                                        'addr':self.addr}
         v = self.raw_value()
@@ -827,7 +835,7 @@ class LongArrayOop(BaseOverlay):
 
     def python_value(self, bread_crumbs={}, **kargs):
         if not self.addr in bread_crumbs:
-            bread_crumbs[self.addr] = {'is_array':True,
+            bread_crumbs[self.addr] = {'ref_addrs':set(), 'is_array':True,
                                        'is_prim':True, 'value':{},
                                        'addr':self.addr}
         v = self.raw_value()
@@ -884,7 +892,7 @@ class ShortArrayOop(BaseOverlay):
 
     def python_value(self, bread_crumbs={}, **kargs):
         if not self.addr in bread_crumbs:
-            bread_crumbs[self.addr] = {'is_array':True,
+            bread_crumbs[self.addr] = {'ref_addrs':set(), 'is_array':True,
                                        'is_prim':True, 'value':{},
                                        'addr':self.addr}
         v = self.raw_value()
@@ -942,7 +950,7 @@ class BoolArrayOop(BaseOverlay):
 
     def python_value(self, bread_crumbs={}, **kargs):
         if not self.addr in bread_crumbs:
-            bread_crumbs[self.addr] = {'is_array':True,
+            bread_crumbs[self.addr] = {'ref_addrs':set(), 'is_array':True,
                                        'is_prim':True, 'value':{},
                                        'addr':self.addr}
         v = self.raw_value()

@@ -1,4 +1,8 @@
-import os, copy
+from zipfile import ZipFile
+from StringIO import StringIO
+from multiprocessing.managers import BaseManager
+from multiprocessing import Pool, TimeoutError, Queue, Manager, Lock
+import os, copy, time, copy, collections
 from findstructs import FindStructs
 from bitstring import ConstBitStream
 import struct
@@ -6,8 +10,9 @@ from jvm_objects import VMStructEntry, CollectedHeap, GCLog, ClassLoaderData
 from jvm_symboltable import SymbolTable, Symbol
 from jvm_stringtable import StringTable
 from jvm_systemdictionary import Dictionary
-from jvm_klass import get_klass_info, KlassInstance, Klass, ObjArrayKlass, TypeArrayKlass, ArrayKlass
-from jvm_meta import Method
+from jvm_klass import get_klass_info, KlassInstance, Klass, ObjArrayKlass, TypeArrayKlass, \
+                      restrict_klass_parsing, ArrayKlass
+from jvm_meta import Method, CPCache
 from jvm_klassoop import Oop, ObjArrayKlassOop
 from jvm_base import BaseOverlay
 from jvm_entry_offsets import VERSION_OFFSET, DICTIONARY, SHAREDHEAP, \
@@ -34,6 +39,275 @@ def log_recoop_interface(msg):
     else:
         print ("[%s]: %s"%(time_str(), msg))
 
+def log_no_recoop(msg):
+    print ("[%s]: %s"%(time_str(), msg))
+
+
+
+def compress_dictionary_values(dict_vals):
+    inMemoryOutputFile = StringIO()
+    zipFile = ZipFile(inMemoryOutputFile, 'w')
+    for k, v in dict_vals.items():
+        zipFile.writestr(k, str(v))
+    zipFile.close()
+    inMemoryOutputFile.seek(0)
+    data = inMemoryOutputFile.read()
+    return data
+
+def uncompress_dictionary_values(data):
+    inMemoryOutputFile = StringIO(data)
+    zipfile = ZipFile(inMemoryOutputFile)
+    res = {}
+    for name in zipfile.namelist():
+        res[name] = eval(zipfile.read(name))
+    return res
+
+def create_bci_ranges(methods):
+    bci_ranges = []
+    for m in methods:
+        if not hasattr(m, 'bci_addr') or\
+           not hasattr(m, 'bci_size'):
+           continue
+        bci_range = {}
+        bci_range['method'] = m.addr
+        bci_range['start'] = m.bci_addr
+        bci_range['end'] = m.bci_addr+m.bci_size
+        bci_range['values'] = set([i for i in xrange(bci_range['start'], bci_range['end'])])
+        bci_ranges.append(bci_range)
+    return bci_ranges
+
+
+def build_found_value_summarys(value_range_locs):
+    found_addrs_locs = dict([(baddr, 0) for baddr in value_range_locs])
+    found_val_locs = dict([(baddr, 0) for baddr in value_range_locs])
+    for baddr, lst_addr_val_tup in value_range_locs.items():
+        found_addrs_locs[baddr] += len(lst_addr_val_tup)
+        if len(lst_addr_val_tup) > 0 and \
+              isinstance(list(lst_addr_val_tup)[0], collections.Iterable) and\
+              len(list(lst_addr_val_tup)[0]) > 0:
+           found_val_locs[baddr] += len(set([k[1] for k in lst_addr_val_tup]))
+        elif len(lst_addr_val_tup) > 0: 
+           found_val_locs[baddr] += len(lst_addr_val_tup)
+
+    skeys = found_addrs_locs.keys()
+    skeys.sort()
+    logs = []
+    for baddr in skeys:
+        logs.append("Range: 0x%08x # of addrs %5d, # of values %5d"%(baddr, found_addrs_locs[baddr], found_val_locs[baddr]))
+    return logs
+
+
+def impl_par_scan_page_for_bci_addrs(arg_items):
+    filter_bci = lambda val, bci_range: None if not val in bci_range['values'] \
+                                             else bci_range['method']
+    baddr, offset, vals, bci_ranges_constraint, values, method_mapping = arg_items
+
+    #vals = r.read_all_as_dword()
+    #baddr = r.start
+    value_range_locs = {}
+    value_addr_locs = {}
+    value_range_locs[baddr] = []
+    pos = offset
+    log_no_recoop("Scanning chunk: 0x%08x with %d values with %d constraints"%(baddr+offset, len(vals), len(bci_ranges_constraint)))
+    found_vals = dict([(i, 0) for i in set(method_mapping.values())])
+    for val in vals:
+        m = None
+        if val in values:
+            method = method_mapping[val]
+            t = (baddr+pos, val, method)
+            value_range_locs[baddr].append(t)
+            found_vals[method]+= 1
+        pos += 4
+        
+    dict_values = {
+          'value_range_locs':value_range_locs
+    }
+    all_vals = found_vals.values()
+    log_no_recoop("Completed scanning chunk: 0x%08x.  Found %d values, %d unique"%(baddr+offset, len(all_vals), sum(all_vals)))
+    return [baddr, dict_values]
+
+POOL = None
+def par_scan_page_for_bci_addrs(bci_ranges, bci_ranges_constraint, num_procs=20, max_send=666628):
+    global POOL
+    value_range_locs = {}
+    pool = Pool(processes=num_procs)
+    POOL = pool
+    required_items = 0
+    ranges = sorted(bci_ranges, key=lambda r: r.fsize, reverse=True)
+    values = set()
+    method_mapping = {}
+    for brc in bci_ranges_constraint:
+        _values = brc['values']
+        values |= _values
+        maddr = brc['method']
+        method_mapping.update(dict([(v, maddr) for v in _values]))
+
+    iter_data = build_par_bci_scan_page_iter(ranges, bci_ranges_constraint, values, method_mapping, max_send)
+    #data = [(r, values, found_locations ) for r in ranges]
+    pool_map_results = pool.imap_unordered(impl_par_scan_page_for_bci_addrs,iter_data )
+    for vals in pool_map_results:
+        baddr, res = vals
+        log_no_recoop("Master Proc: Processed %d ranges: Reading values chunk: 0x%08x with %d values"%(required_items, baddr, len(res['value_range_locs'][baddr])))
+        required_items += 1
+        _value_range_locs = res['value_range_locs']
+        for baddr, lst_addr_val_tup in _value_range_locs.items():
+            if not baddr in value_range_locs:
+                value_range_locs[baddr] = lst_addr_val_tup #copy.deepcopy(lst_addr_val_tup)
+            else:
+                l = value_range_locs[baddr] + lst_addr_val_tup
+                value_range_locs[baddr] = l
+    
+    summary = build_found_value_summarys(value_range_locs)
+    log_no_recoop("\n".join(summary))
+
+    pool.close()
+    POOL = None
+    return value_range_locs
+
+def build_par_bci_scan_page_iter(bci_ranges, bci_ranges_constraint, values, method_mapping, max_send=666628):
+    data = []
+    for r in bci_ranges:
+        baddr = r.start
+        offset = 0
+        e = r.fsize/4
+        vals = r.read_all_as_dword()
+        if (r.fsize/4) < max_send:
+            _v = vals
+            t = (baddr, offset*4, _v, bci_ranges_constraint, values, method_mapping)
+            data.append(t)
+        else:
+            while offset < e:
+                _v = vals[offset:offset+max_send]
+                t = (baddr, offset*4, _v, bci_ranges_constraint, values, method_mapping)
+                data.append(t)
+                offset += max_send
+    return data
+
+def get_pot_intersecting_scan_ranges(recoop_inf, target_addrs, target_addr_uses, other_addr_uses={}):
+    return get_pot_bci_ranges(recoop_inf, target_addrs, target_addr_uses, other_addr_uses)
+
+def get_pot_bci_ranges(recoop_inf, method_addrs, method_addr_uses, cpc_addr_uses):
+    ignore_ranges = set()
+    for ma in method_addrs:
+        r = recoop_inf.jva.find_range(ma)
+        ignore_ranges.add(r.start)
+
+    int_ranges = {}
+    for baddr in method_addr_uses.keys():
+        if baddr in ignore_ranges or\
+           not baddr in cpc_addr_uses:
+            continue
+        r = recoop_inf.jva.find_range(baddr)
+        int_ranges[r.start] = r
+    
+    sorted_ranges = sorted(int_ranges.items(), key=lambda k_v: k_v[0], reverse=True)
+    return [r[1] for r in sorted_ranges]
+
+def impl_par_scan_page_for_dword_values(arg_items):
+    baddr, offset, vals, values= arg_items
+    if isinstance(values, list):
+        values = set(values)
+    elif isinstance(values, long) or isinstance(values, int):
+        x = set()
+        x.add(values)
+        values = x
+
+    #vals = r.read_all_as_dword()
+    #baddr = r.start
+    value_range_locs = {}
+    value_addr_locs = {}
+    value_range_locs[baddr] = []
+    pos = offset
+    log_no_recoop("Scanning chunk: 0x%08x with %d values for %d values"%(baddr+offset, len(vals), len(values)))
+    found_vals = {}
+    for val in vals:
+        if val in values:
+            t = (baddr+pos, val)
+            value_range_locs[baddr].append(t)
+            if not val in value_addr_locs:
+                value_addr_locs[val] = set()
+                found_vals[val] = 0
+            value_addr_locs[val].add(baddr+pos)
+            found_vals[val] += 1
+        pos += 4
+
+    all_vals = found_vals.values()
+    log_no_recoop("Completed scanning chunk: 0x%08x.  Found %d values, %d unique"%(baddr+offset, len(all_vals), sum(all_vals)))
+    #log_no_recoop("Returning values chunk: 0x%08x with %d values"%(baddr, r.fsize/4))
+    dict_values = {
+          'value_addr_locs':value_addr_locs,
+          'value_range_locs':value_range_locs
+    }
+    #log_no_recoop("Compressing values chunk: 0x%08x with %d values"%(baddr, r.fsize/4))
+    #data = compress_dictionary_values(dict_values)
+    #return [baddr, data]
+    return [baddr, dict_values]
+    #log_no_recoop("Completed compressing values chunk: 0x%08x with %d values"%(baddr, r.fsize/4))
+
+def build_par_scan_page_iter(_ranges, values, max_send=666628):
+    data = []
+    for r in _ranges:
+        baddr = r.start
+        offset = 0
+        e = r.fsize/4
+        vals = r.read_all_as_dword()
+        if (r.fsize/4) < max_send:
+            _v = vals
+            t = (baddr, offset*4, _v, values)
+            data.append(t)
+        else:
+            while offset < e:
+                _v = vals[offset:offset+max_send]
+                t = (baddr, offset*4, _v, values)
+                data.append(t)
+                offset += max_send
+    return data
+
+DWORD_SCAN_POOL = None
+def par_scan_page_for_dword_values(_ranges, values, num_procs=20, max_send=666628):
+    global DWORD_SCAN_POOL
+    value_addr_locs = {}
+    value_range_locs = {}
+    pool = Pool(processes=num_procs)
+    DWORD_SCAN_POOL = pool
+    required_items = 0
+    ranges = sorted(_ranges, key=lambda r: r.fsize, reverse=True) 
+    iter_data = build_par_scan_page_iter(_ranges, values, max_send)        
+    #data = [(r, values, found_locations ) for r in ranges]
+    pool_map_results = pool.imap_unordered(impl_par_scan_page_for_dword_values,iter_data )
+
+    for vals in pool_map_results:
+        #baddr, data = vals
+        #if data is None:
+        #     log_no_recoop("Master Proc: Processed %d ranges: Reading values chunk: 0x%08x, but it was updated with a proxy"%(required_items, baddr))
+        #     required_items += 1
+        #     continue
+        #res = uncompress_dictionary_values(data)
+
+        baddr, res = vals
+        log_no_recoop("Master Proc: Processed %d ranges: Reading values chunk: 0x%08x with %d values"%(required_items, baddr, len(res['value_range_locs'][baddr])))
+        required_items += 1
+        #value_addr_locs.update(res['value_addr_locs'])
+        _value_addr_locs = res['value_addr_locs']
+        _value_range_locs = res['value_range_locs']
+        for val, loc_set in _value_addr_locs.items():
+            if val in value_addr_locs:
+                value_addr_locs[val] |= loc_set
+            else:
+                value_addr_locs[val] = loc_set #copy.deepcopy(loc_set)
+            
+        for baddr, lst_addr_val_tup in _value_range_locs.items():
+            if not baddr in value_range_locs:
+                value_range_locs[baddr] = lst_addr_val_tup #copy.deepcopy(lst_addr_val_tup)
+            else:
+                l = value_range_locs[baddr] + lst_addr_val_tup
+                value_range_locs[baddr] = l
+    summary = build_found_value_summarys(value_range_locs)
+    log_no_recoop("\n".join(summary))
+        
+    pool.close()
+    DWORD_SCAN_POOL = None
+    return value_addr_locs, value_range_locs
 
 class JVMAnalysis (object):
     VERSION_OFFSET = VERSION_OFFSET
@@ -159,6 +433,7 @@ class JVMAnalysis (object):
             'sun/awt/windows/WToolkit$ToolkitDisposer',
             'java/util/concurrent/CopyOnWriteArrayList$COWIterator',
              ])
+        self.min_symbols= 200
         self.os_type = os_type
         self.libjvm = libjvm
         self.word_sz = word_sz
@@ -184,6 +459,7 @@ class JVMAnalysis (object):
         self.vm_stringtable = None
         self.stringtable_values = {}
         self.known_internals = {}
+        self.known_overlay_mapping = {}
         self.known_metas = {}
         #self.observed_metas = {}
         self.all_oops = {}
@@ -405,6 +681,8 @@ class JVMAnalysis (object):
                 return self._symbol_table_addr
             except:
                 self._symbol_table_addr = None
+                import traceback
+                traceback.print_exc()
                 return None
         sym = syms[0]
         stable_addr = self.deref32(sym.address) if self.is_32bit else\
@@ -570,9 +848,18 @@ class JVMAnalysis (object):
         if addr in self.heap_oops:
             del self.heap_oops[addr]
 
-    def forget_obj(self, addr):
+    def forget_internal_obj(self, addr):
         if self.has_internal_object(addr):
-            del self.known_internals[addr]
+            _object = self.known_internals[addr]
+            overlay_info = _object.get_overlay_info()
+            if addr in self.known_overlay_mapping:
+                del self.known_overlay_mapping[addr]
+            for _addr in overlay_info:
+                if _addr in self.known_overlay_mapping:
+                    del self.known_overlay_mapping[_addr]
+
+            if addr in self.known_internals:
+                del self.known_internals[addr]
 
     def forget_meta (self, addr):
         if addr in self.known_metas:
@@ -640,7 +927,7 @@ class JVMAnalysis (object):
         self.forget_meta(addr)
         self.forget_klass(addr)
         self.forget_oop(addr)
-        self.forget_obj(addr)
+        self.forget_internal_obj(addr)
         self.forget_vtables(addr)
 
     def forget_vtables(self, addr):
@@ -757,6 +1044,9 @@ class JVMAnalysis (object):
             return self.all_oops[addr]
         return None
 
+    def get_oop_only(self, addr):
+        return lookup_known_oop_only(addr)
+        
     def lookup_known_oop(self, addr):
         if addr in self.all_oops:
             return self.all_oops[addr]
@@ -792,6 +1082,9 @@ class JVMAnalysis (object):
         if addr == 0:
             return None
         return Klass.from_jva (addr, self)
+
+    def get_cpcache_only(self, addr):
+        return self.get_meta_only(addr, CPCache)
 
     def get_method_only(self, addr):
         return self.get_meta_only(addr, Method)
@@ -909,8 +1202,15 @@ class JVMAnalysis (object):
             return self.known_internals[addr]
         return None
 
-    def add_internal_object (self, addr, object):
-        self.known_internals[addr] = object
+    def add_internal_object (self, addr, _object):
+        self.known_internals[addr] = _object
+        try:
+            overlay_info = _object.get_overlay_info()
+            self.known_overlay_mapping.update(overlay_info)
+        except:
+            import traceback
+            traceback.print_exc()
+            self.log("Error: Attempting to get overlay info failed")
 
     def find_range (self, vaddr):
         if vaddr is None:
@@ -1153,11 +1453,9 @@ class JVMAnalysis (object):
         CONST_OFFSET = 0x20
         dict_table_size = 0x04e2b
         results = []
-        if start is None:
-            start = min(self.ranges)
+        ranges = self.slice_lte_addrs(self.get_libjvm_base())
         if end is None:
-            end = max(self.ranges)+ self.ranges[max(self.ranges)].size
-
+            end = self.get_libjvm_base()
         ranges = self.slice_lte_addrs(end)
         if start is None:
             start = ranges[0].start
@@ -1419,7 +1717,9 @@ class JVMAnalysis (object):
 
     def read_internal_string_table(self):
         if self._string_table_addr is None:
+            restrict_klass_parsing(False)
             self.set_string_table_addr()
+            restrict_klass_parsing(True)
             if self._string_table_addr is None:
                 raise Exception("Unable to locate the internal symbol")
         stable_addr = self._string_table_addr
@@ -1534,6 +1834,32 @@ class JVMAnalysis (object):
                 self.log ("Failed to update the klass mirror: %s"%str(klass))
         return updated_fields
 
+    def update_loaded_klass_fields2(self):
+        # follow up update
+        for n,k in self.loaded_classes_by_name.items():
+            addr = k.addr
+            if not hasattr(k, 'method_info') or not hasattr(k, 'field_info'):
+                self.forget_klass(addr)
+                klass = self.get_klass(addr)
+                try:
+                    self.log ("Updating (second attempt) %s klass fields"%( klass))
+                    klass.update_fields()
+                    klass.set_klass_dependencies()
+                    klass.update_all_field_infos()
+                except:
+                    self.log ("Falied: Updating (second attempt) %s klass fields"%( klass))
+            elif len(k.method_info) == 0 and len(k.field_info) == 0:
+                self.forget_klass(addr)
+                klass = self.get_klass(addr)
+                try:
+                    self.log ("Updating (second attempt) %s klass fields"%( klass))
+                    klass.update_fields()
+                    klass.set_klass_dependencies()
+                    klass.update_all_field_infos()
+                except:
+                    self.log ("Falied: Updating (second attempt) %s klass fields"%( klass))
+
+
     def update_loaded_klass_fields(self):
         updated_fields = 0
         updated = 0
@@ -1591,6 +1917,8 @@ class JVMAnalysis (object):
                     self.forget_klass(klass.addr)
                     klass.klasstype = "ERROR unable to update"
                     self.add_klass(klass, check_vtable=True)
+        self.update_loaded_klass_fields2()
+        restrict_klass_parsing(True)
         return updated_fields
 
     def read_system_dictionary(self):
@@ -1622,11 +1950,25 @@ class JVMAnalysis (object):
 
         self.log ("Enumerating klass_loaders")
         self.klass_loaders = {}
+        failed_kloader_update = []
         for kaddr in self.klass_loader_addrs:
             if not kaddr in self.klass_loaders:
                 kloader = ClassLoaderData.from_jva(kaddr, self)
                 self.klass_loaders[kloader.addr] = kloader
-                kloader.update_fields()
+                try:
+                    kloader.update_fields()
+                except:
+                    failed_kloader_update.append(kloader)
+                    self.log("Failed to update kloader @ 0x%08x"%kloader.addr)
+        for f in failed_kloader_update:
+            self.log("Second attempt to update kloader @ 0x%08x"%f.addr)
+            try:
+                f.update_fields()
+                self.log("^^ Update worked @ 0x%08x"%f.addr)
+            except:
+                self.log("^^ Update failed worked @ 0x%08x"%f.addr)
+
+
 
         for kloader in self.klass_loaders.values():
             ms = kloader.get_metaspaces()
@@ -1758,10 +2100,13 @@ class JVMAnalysis (object):
 
         return self.heap_age_locs
 
-    def scan_pages_for_dword_value (self, value, start=None, end=None, omit_ranges=[]):
-        return self.scan_pages_for_dword_values([value],start, end, omit_ranges)
+    def scan_pages_for_dword_value (self, value, start=None, end=None, omit_ranges=[], in_parallel=False, num_procs=10):
+        return self.scan_pages_for_dword_values([value],start, end, omit_ranges, in_parallel, num_procs)
+        
+        
 
-    def scan_pages_for_dword_values(self, values, start=None, end=None, omit_ranges=[]):
+
+    def scan_page_for_dword_values(self, r, values, start=None, end=None, omit_ranges=[]):
         if isinstance(values, list):
             values = set(values)
         elif isinstance(values, long) or isinstance(values, int):
@@ -1779,32 +2124,63 @@ class JVMAnalysis (object):
         _ranges = self.slice_gte_addrs(start)
         value_range_locs = {}
         value_addr_locs = {}
-        for r in _ranges:
-            baddr = r.start
-            skip_range = False
-            for o in omit_ranges:
-                if r.in_range(o):
-                    skip_range = True
-            if skip_range:
-                self.log("Skipping chunk: 0x%08x with %d values"%(baddr, r.fsize/4))
-                continue
-            self.log("Scanning chunk: 0x%08x with %d values"%(baddr, r.fsize/4))
-            if baddr > end:
+        baddr = r.start
+        skip_range = False
+        for o in omit_ranges:
+            if r.in_range(o):
+                skip_range = True
+        if skip_range:
+            self.log("Skipping chunk: 0x%08x with %d values"%(baddr, r.fsize/4))
+            return value_addr_locs, value_range_locs
+        self.log("Scanning chunk: 0x%08x with %d values"%(baddr, r.fsize/4))
+        vals = r.read_all_as_dword()
+        value_range_locs[baddr] = []
+        pos = 0
+        found_vals = {}
+        for val in vals:
+            if val in values:
+                t = (baddr+pos, val)
+                value_range_locs[baddr].append(t)
+                if not val in value_addr_locs:
+                    value_addr_locs[val] = set()
+                    found_vals[val] = 0
+                value_addr_locs[val].add(baddr+pos)
+                found_vals[val] += 1
+            pos += 4
+            if (pos + baddr) > end:
                 break
-            vals = r.read_all_as_dword()
-            value_range_locs[baddr] = []
-            pos = 0
-            for val in vals:
-                if val in values:
-                    t = (baddr+pos, val)
-                    value_range_locs[baddr].append(t)
-                    if not val in value_range_locs:
-                        value_addr_locs[val] = set()
-                    value_addr_locs[val].add(baddr+pos)
+        all_vals = found_vals.values()
+        self.log("Completed scanning chunk: 0x%08x.  Found %d values, %d unique"%(baddr, len(all_vals), sum(all_vals)))
+        return value_addr_locs, value_range_locs
 
-                pos += 4
-                if (pos + baddr) > end:
-                    break
+    def scan_pages_for_dword_values(self, values, start=None, end=None, omit_ranges=[], in_parallel=False, num_procs=10):
+        if isinstance(values, list):
+            values = set(values)
+        elif isinstance(values, long) or isinstance(values, int):
+            x = set()
+            x.add(values)
+            values = x
+
+        self.log("Starting scan for %d values in ranges"%len(values))
+        if start is None:
+           start = self.sorted_rangeaddrs[0]
+        if end is None:
+            ba = self.sorted_rangeaddrs[-1]
+            end = self.ranges[ba].fsize + ba
+
+        _ranges = self.slice_gte_addrs(start)
+        _ranges = [r for r in _ranges if r.start < end]
+        value_range_locs = {}
+        value_addr_locs = {}
+        if not in_parallel:
+            for r in _ranges:
+                _value_addr_locs, _value_range_locs = self.scan_page_for_dword_values(r, values, start, end, omit_ranges)
+                value_addr_locs.update(_value_addr_locs)
+                value_range_locs.update(_value_range_locs)
+        else:
+            _value_addr_locs, _value_range_locs = par_scan_page_for_dword_values(_ranges, values, num_procs)
+            value_addr_locs.update(_value_addr_locs)
+            value_range_locs.update(_value_range_locs)
         self.log("Completed scan for all values in ranges")
         return value_addr_locs, value_range_locs
 
@@ -1821,7 +2197,7 @@ class JVMAnalysis (object):
             if not k is None and not getattr(k, 'java_mirror_value', None) is None:
                 values.add(k.java_mirror)
 
-        jm_oop_addr_locs, jm_oop_range_locs = self.scan_pages_for_dword_values(values, start, end)
+        jm_oop_addr_locs, jm_oop_range_locs = self.scan_pages_for_dword_values(values, start, end, in_parallel=True)
         self.log("Completed scan for all Klass addresses in ranges")
         return jm_oop_addr_locs, jm_oop_range_locs
 
@@ -1834,7 +2210,7 @@ class JVMAnalysis (object):
         # Uncompressed OOP addresses
         self.log("Starting scan for all Klass addresses in ranges")
         values = self.loaded_classes_by_addr.keys()
-        klass_addr_locs, klass_range_locs = self.scan_pages_for_dword_values(values, start, end)
+        klass_addr_locs, klass_range_locs = self.scan_pages_for_dword_values(values, start, end, in_parallel=True)
         self.log("Completed scan for all Klass addresses in ranges")
         return klass_addr_locs, klass_range_locs
 
@@ -2267,7 +2643,8 @@ class JVMAnalysis (object):
                 oop = Oop.from_jva(addr, self)
                 if oop and str(oop.klass_value).find(name) == 0:
                     #oop.update_fields()
-                    self.add_oop(oop)
+                    # TODO disabled to aid with saving and verifications
+                    #self.add_oop(oop)
                     oop_results.append(oop)
             except:
                 pass
@@ -2421,38 +2798,45 @@ class JVMAnalysis (object):
 
     def brute_force_identify_symbol_table(self, start=None, end=None):
         if start is None:
-            start = min(self.ranges)
-        if end is None:
-            end = max(self.ranges)+ self.ranges[max(self.ranges)].size
-        symts = []
-        q = set(self.find_potential_symbol_table(start=start, end=end))
-        q = list(q)
-        q.sort()
-        for i in q:
-            try:
-                _jva = JVMAnalysis(**self._init_params)
-                symt = SymbolTable.from_jva(i, _jva)
-                if not symt is None and len(symt.get_bucket_values()) > 0:
-                    symts.append(symt)
-                    print ("Success to parsed table @ 0x%08x"%(i))
-                else:
-                    print ("Failed to parsed table @ 0x%08x (no bucket values or no table)"%(i))
-            except:
-                print ("Exception: Failed to parse table @ 0x%08x"%(i))
-                continue
-        symt = SymbolTable.find_best_match(symts, self)
-        #if not symt is None:
-        #    self._symbol_table_addr = symt.addr
-        return symt
-
-    def brute_force_identify_system_dictionary(self, start=None, end=None):
-        if start is None:
             start = 0x0
         if end is None:
             end = self.get_libjvm_base() | 0x0fff0000
-        dis = []
-        q = list(set(self.find_potential_dictionarys(start=start, end=end)))
+        symts = []
+        q = list(set(self.find_potential_symbol_table(start=start, end=end)))
         q.sort()
+        self.log("Attempting to isolate symbol table from %d candidates"%(len(q)))
+        for i in q:
+            if i < start and i > end:
+                continue
+            try:
+                _jva = JVMAnalysis(**self._init_params)
+                symt = SymbolTable.from_jva(i, _jva)
+                if not symt is None and len(symt.get_bucket_values()) > self.min_symbols:
+                    symts.append(symt)
+                    self.log("Found symbol table cand. at 0x%08x (entrys=%d)"%(symt.addr, len(symt.get_bucket_values())))
+            except:
+                #import traceback
+                #traceback.print_exc()
+                pass
+        _symt = SymbolTable.find_best_match(symts, self)
+        if _symt is None and len(symts) > 0:
+            _symt = symts[0]
+        if _symt:
+            self.log("Using symbol table cand. at 0x%08x (entrys=%d)"%(_symt.addr, len(_symt.get_bucket_values())))
+        else:
+            self.log("Failed to find symbol table cand")
+        #symt = SymbolTable.from_jva(_symt.addr, self)
+        #if not symt is None:
+        #    self._symbol_table_addr = symt.addr
+        return _symt
+
+    def brute_force_identify_system_dictionary(self, start=None, end=None):
+        if start is None:
+            start = min(self.ranges)
+        if end is None:
+            end = max(self.ranges) + self.ranges[max(self.ranges)].fsize
+        dis = []
+        q = set(self.find_potential_dictionarys(start=start, end=end))
         for i in q:
             try:
                 _jva = JVMAnalysis(**self._init_params)
@@ -2461,11 +2845,11 @@ class JVMAnalysis (object):
                     dis.append(m)
             except:
                 pass
-
-        di = Dictionary.find_best_match(dis, self)
+        # parse the dictionary table *fully* with self not the other jva
+        _di = Dictionary.find_best_match(dis, self)
         #if not symt is None:
         #    self._symbol_table_addr = symt.addr
-        return di
+        return _di
 
     def brute_force_identify_string_table(self, start=None, end=None):
         if start is None:
@@ -2482,7 +2866,7 @@ class JVMAnalysis (object):
                     dis.append(m)
             except:
                 pass
-        di = StringTable.find_best_match(dis, self)
+        _di = StringTable.find_best_match(dis, self)
         #if not symt is None:
         #    self._symbol_table_addr = symt.addr
-        return di
+        return _di

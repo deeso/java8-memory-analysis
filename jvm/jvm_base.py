@@ -3,7 +3,8 @@ from jvm_flags import AccessFlags
 from jvm_overlays import get_bits32, get_bits64, get_named_array32, \
                          get_named_array64, get_field_types, name_fields,\
                          get_size32, get_size64, print_overlay_offsets32,\
-                         print_overlay_offsets64
+                         print_overlay_offsets64, get_overlay_offsets32,\
+                         get_overlay_offsets64
 
 from datetime import datetime
 
@@ -59,8 +60,10 @@ class BaseOverlay(object):
         setattr(self, 'field_cnt', 0)
         setattr(self, 'oop_fields_updated', False)
         setattr(self, 'field_info_by_offset', {})
+        setattr(self, 'field_info_by_names', {})
         setattr(self, 'all_field_infos', {})
         setattr(self, 'all_field_infos_visited', False)
+        setattr(self, 'overlay_info', None)
 
     def __getstate__(self):
         #jva = getattr(self, 'jvm_analysis', None)
@@ -85,19 +88,61 @@ class BaseOverlay(object):
     def get_addr(self):
         return getattr(self, 'addr')
 
+    def get_overlay_info_addr(self, addr, force_update=False):
+        if not hasattr(self, 'overlay_info') or \
+           force_update or \
+           getattr(self, 'overlay_info', None) is None:
+            self.get_overlay_info(force_update)
+
+        res = {'name':None, 'type':None}
+        if self.overlay_info and addr in self.overlay_info:
+            res[addr]['name'] = res[addr]['type']
+        return res
+        
+    def get_overlay_info(self, force_update=False):
+        if hasattr(self, 'overlay_info') and \
+           not force_update and \
+           not getattr(self, 'overlay_info', None) is None:
+            return getattr(self, 'overlay_info')
+        
+        addr = getattr(self, 'addr', None)
+        overlay = getattr(self, '_overlay', None)
+        jva = getattr(self, 'jvm_analysis', None)
+        try:
+            if jva and jva.is_32bit:
+                self.overlay_info = get_overlay_offsets32(overlay,
+                                     addr)
+            elif jva and not jva.is_32bit:
+                self.overlay_info = get_overlay_offsets64(overlay,
+                                     addr)
+        except:
+            import traceback
+            traceback.print_exc()
+        return self.overlay_info
+
     def dump_class_prototypes(self):
         klass = self.get_klass()
         methods = []
         method_info = getattr(klass, 'method_info', {})
         for mi in method_info.values():
             methods.append(mi.get('prototype', ''))
+        method_values = getattr(klass, 'methods_value', None)
+
+        if method_values:
+            elems = getattr(method_values, 'elem', [])
+            is_method = lambda m: not m is None and hasattr(m, '_name') and m._name == 'Method'
+            for mv in elems:
+                if is_method(mv):
+                    p = mv.method_prototype()
+                    if not p in methods:
+                        methods.append(p)
         fields = []
         field_info = getattr(klass, 'field_info', {})
         for fi in field_info.values():
             fields.append(fi.get('prototype', ''))
 
         fields = "// Fields\n%s\n"%"\n".join(fields)
-        methods = "// Fields\n%s\n"%"\n".join(methods)
+        methods = "// Methods\n%s\n"%"\n".join(methods)
 
         fmt = "%s{\n%s\n%s\n}"
         klass_prototype = "// @0x%08x\n%s"%(getattr(self, 'addr'), getattr(klass, 'prototype'))
@@ -394,7 +439,7 @@ class BaseOverlay(object):
         return False
 
     @classmethod
-    def from_jva(cls, addr, jvm_analysis):
+    def from_jva(cls, addr, jvm_analysis, **kargs):
         sz = cls.size32 if jvm_analysis.is_32bit else\
              cls.size64
         if addr == 0 or not jvm_analysis.is_valid_addr(addr):
@@ -406,7 +451,7 @@ class BaseOverlay(object):
         elif len(nbytes) != sz:
             #print ("Error: failed to read %d bytes @ 0x%08x"%(sz, addr))
             return None
-        return cls.from_bytes (addr, nbytes, jvm_analysis)
+        return cls.from_bytes (addr, nbytes, jvm_analysis, **kargs)
 
     @classmethod
     def reset_overlay(cls, TYPE):
@@ -514,6 +559,11 @@ class BaseOverlay(object):
         types = self.get_field_types()
         return zip(types, names)
 
+    def get_field_info_by_name (self, name):
+        if hasattr(self, 'field_info_by_names') and\
+           name in self.field_info_by_names:
+           return self.field_info_by_names[name]
+        return None
 
     def get_field_types(self):
         field_info = self.get_field_info()
@@ -806,6 +856,7 @@ class BaseOverlay(object):
         field_oop_vals = []
         field_info = getattr(klass, 'field_info', {})
         field_info_by_offset = getattr(klass, 'field_info_by_offset', {})
+        field_info_by_names = getattr(klass, 'field_info_by_names', {})
         field_meta = fields.elem
         cp_entrys = cp.entrys
         pos = 0
@@ -820,13 +871,21 @@ class BaseOverlay(object):
             acc, name, sig, ival, low_tag, high_tag = \
                   field_meta[pos:pos+6]
             #print ("Updating field #%d of %si: access = 0x%02x"%(fld, str(klass), acc))
+            n = cp_entrys[name] if name < len(cp_entrys) else\
+                ''
+            _name = str(n)
             if AccessFlags.is_field_generic(acc):
                 #print ("Encountered a generic flag, decrementing end to %d"%(end-1))
                 end -=1
             data = {'access':acc, 'name_idx':name, 'sig_idx':sig,
+		    'is_prim':_name.strip('[') in PRIMITIVES,
+		    'is_lang_prim':_name.strip('[') in JAVA_LANG_PRIMITIVES,
+		    'is_native_prim':False,
+                    'is_array':_name.find('[') == 0,
                     'initial_value':ival, 'high_tag':high_tag,
                     'low_tag':low_tag, 'tag':(high_tag << 8)+low_tag, 'offset':0,
                     'type':0, 'contention_group':0, 'prototype':''}
+            data['is_native_prim'] = data['is_prim'] or data['is_lang_prim']
             #high_low = struct.pack("B", high_off) + struct.pack("B", low_off)
             tag = data['tag']
             if tag & 0x03 == 0x01:
@@ -863,6 +922,7 @@ class BaseOverlay(object):
             #data['sig'] = cp_entrys[sig] if sig < len(cp_entrys) else\
             #               ''
             field_info[fld] = data
+            field_info_by_names[data['name']] = data
             offset = data['offset']
             if not offset in field_info_by_offset and\
                offset != 0 and offset != -1:
@@ -909,6 +969,9 @@ class BaseOverlay(object):
         if val & 0x01:
             return val-1
         return val
+
+    def is_native_array_obj(self):
+        return False
 
     @classmethod
     def is_python_native(cls, val):

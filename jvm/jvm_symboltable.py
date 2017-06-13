@@ -10,8 +10,7 @@ from jvm_overlays import get_bits32, get_bits64, get_named_array32, \
                          get_size32, get_size64
 
 from jvm_base import BaseOverlay
-
-END_IT_SIZE = 20000
+END_IT_SIZE = 60000
 MAX_NUM_SYMBOLS = 65536
 class Symbol(BaseOverlay):
     _name = "Symbol"
@@ -75,10 +74,11 @@ class Symbol(BaseOverlay):
             #return None
         if _length > 1500:
             print ("WARNING: Symbol extremely long length (%d) at 0x%08x"%(_length, addr))
-        if _length >= END_IT_SIZE:
-            print ("WARNING: Symbol extremely long length (%d) at 0x%08x"%(_length, addr))
-            raise Exception("WARNING: Symbol extremely long length (%d) at 0x%08x"%(_length, addr))
             #return None
+        if _length >= END_IT_SIZE:
+            print ("WARNING: Symbol extremely long length (%d) at 0x%08x, bailing!"%(_length, addr))
+            raise Exception("WARNING: Symbol extremely long length (%d) at 0x%08x"%(_length, addr))
+
         # there is a dummy byte in there for the "jbyte"
         if jvm_analysis.is_32bit:
             kargs['jbyte'] = jvm_analysis.read(addr+Symbol.size32-1, _length)
@@ -315,14 +315,14 @@ class SymbolTable(BaseOverlay):
         candidates = {}
         symt_avgs = [(i, np.mean([len(str(j)) for j in i.get_bucket_values()])) for i in sym_tables if len(i.get_bucket_values()) > 0]
         for symt, avg in symt_avgs:
-            if symt is None or len(symt.get_bucket_values()) == 0 or\
-                    len(symt.get_bucket_values()) > MAX_NUM_SYMBOLS:
+            if symt is None or len(symt.get_bucket_values()) == 0:
                 continue
             a = symt.addr
             bvalues = symt.get_bucket_values()
             syms = [str(i) for i in bvalues]
             max_sym_len = np.max([len(i) for i in syms])
-            if max_sym_len < 65537 and avg < 100:
+            if max_sym_len < 65537 and len(syms) > 1000:
+                print ("This looks like the best cand: %d values @ 0x%08x"%(len(symt.get_bucket_values()), symt.addr))
                 return symt
         return None
 

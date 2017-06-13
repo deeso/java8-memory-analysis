@@ -82,6 +82,13 @@ class Range (object):
             self.fsize = len(self.fdata)#self.get_size()
         self.pos = 0
 
+    def __getstate__(self):
+        odict = self.__dict__.copy()
+        return odict
+
+    def __setstate__(self, dict):
+        self.__dict__.update(dict)
+    
     def get_size(self):
         return self.fsize
 
@@ -198,22 +205,30 @@ class Range (object):
         #self.fhandle.seek(offset)
         return True
 
-    def read_all_as_ndwords_at_addr(self, addr, n_dwords=1, little_endinan=True):
-        struct_fmt = "<%dI"%(n_dwords)
+    def read_dwords_at_addr(self, addr, dwords=1, little_endinan=True):
         if not self.in_range(addr):
            return []
-        elif not (addr-self.start) + n_dwords*4 < self.end:
+        elif not (addr-self.start) + dwords*4 < self.end:
            return []
-        self.seek_to(addr-self.start)
+        pos = addr - self.start
+        data = self._read(dwords*4, pos)
+        if data is None:
+            return []
+        #print("Read %d (expected: %d) bytes (%d dwords)"%(len(data), dwords*4, dwords)) 
+        if len(data) < dwords*4:
+            dwords = len(data)/4
+            data = data[:dwords*4]
+        struct_fmt = "<%dI"%(dwords)
         if not little_endinan:
-            struct_fmt = ">%dI"%(n_dwords)
-        dwords = struct.unpack(struct_fmt, self.fdata)
-        return dwords
+            struct_fmt = ">%dI"%(dwords)
+        res = struct.unpack(struct_fmt, data)
+        return res
 
     def read_all_as_dword (self, little_endinan=True):
-        struct_fmt = "<%dI"%(self.fsize/4)
+        num = len(self.fdata)/4
+        struct_fmt = "<%dI"%(num)
         if not little_endinan:
-            struct_fmt = ">%dI"%(self.fsize/4)
+            struct_fmt = ">%dI"%(num)
         dwords = struct.unpack(struct_fmt, self.fdata)
         return dwords
 

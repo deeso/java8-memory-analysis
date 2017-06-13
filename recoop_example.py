@@ -8,16 +8,18 @@ from jvm.jvm_stringtable import StringTable
 from jvm.jvm_klassoop import Oop
 from jvm.jvm_objects import JavaThreadPartial, JavaFrameAnchor, Frame, VFrameArray
 
-dump_java_process = False
-profile = 'LinuxUbuntu1504-whatx86'
-dump_dir = '/research_data/code/git/jvm_analysis_old/java-rat/proxy/experiment_five/t0/memory-dump.bin'
-dumps_dir = '/research_data/code/git/jvm_analysis_old/java-rat/proxy/experiment_five/t0/dumps/'
-recoop_1 = recoop_jvm8.RecOOPJVM8(path_to_dumps=dumps_dir, path_to_mem=dump_dir,jvm_ver="8u60", dump_java_process=dump_java_process)
 
-recoop_1.next_step(profile=profile)
-recoop_1.next_step(profile=profile, convert_oop_to_pyobj=False)
-recoop_1.next_step(profile=profile, convert_oop_to_pyobj=False)
-recoop_1.next_step(profile=profile, convert_oop_to_pyobj=False)
+profile = 'LinuxUbuntu1504-whatx86'
+dumps_dir = '/research_data/code/git/jvm_analysis/java-rat/g1gc-process/dumps/'
+dump_dir = '/research_data/code/git/jvm_analysis/java-rat/g1gc-process/memory-work.dump'
+dump_java_process=True
+libjvm = 0x00b66e7000
+recoop_jva5 = recoop_jvm8.RecOOPJVM8(path_to_dumps=dumps_dir, path_to_mem=dump_dir,jvm_start_addr=libjvm, jvm_ver="8u60", dump_java_process=dump_java_process)
+
+recoop_jva5.next_step(profile=profile)
+recoop_jva5.next_step()
+recoop_jva5.next_step()
+recoop_jva5.next_step()
 
 
 jva5 = recoop_jva5.jva

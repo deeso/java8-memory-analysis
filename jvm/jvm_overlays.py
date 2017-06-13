@@ -74,6 +74,45 @@ def print_overlay_offsets32(TYPE, values, base_off = 0):
     #print "\n".join(d)
     return "\n".join(d)
 
+
+def get_overlay_offsets64(TYPE, base_off = 0):
+    pos = 0
+    fmt = "%s %s %s = %s"
+    d = []
+    types = get_field_types(TYPE)
+    names = get_named_array64(TYPE)
+    sizes = get_field_sizes64(TYPE)
+    overlay_info = {}
+    offset = 0
+    while pos < len(names):
+        name = names[pos]
+        sz = struct.calcsize(sizes[pos])
+        type_ = types[pos]
+        overlay_info[base_off+offset] = {'name':name, 
+              'type':type_}
+        pos += 1
+        offset += struct.calcsize(sizes[pos-1])
+    return overlay_info
+
+def get_overlay_offsets32(TYPE, base_off = 0):
+    pos = 0
+    fmt = "%s %s %s = %s"
+    d = []
+    types = get_field_types(TYPE)
+    names = get_named_array32(TYPE)
+    sizes = get_field_sizes32(TYPE)
+    overlay_info = {}
+    offset = 0
+    while pos < len(names):
+        name = names[pos]
+        sz = struct.calcsize(sizes[pos])
+        type_ = types[pos]
+        overlay_info[base_off+offset] = {'name':name, 
+              'type':type_}
+        pos += 1
+        offset += struct.calcsize(sizes[pos-1])
+    return overlay_info
+
 def print_overlay_offsets64(TYPE, values, base_off = 0):
     pos = 0
     fmt = "%s %s = %s @ %s"
@@ -264,6 +303,90 @@ COMPILED_IC_HOLDER_META_TYPE =  [
     ['I', 'Q', 'klassOop', 'holder_klass'],
 ]
 
+CI_METHOD_BLOCK = [
+    ['I', 'I', 'int', '_idx'],
+    ['I', 'I', 'int', '_start_bci'],
+    ['I', 'I', 'int', '_limit_bci'],
+    ['I', 'I', 'int', '_control_bci'],
+    ['I', 'I', 'uint', '_flags'],
+    ['I', 'I', 'int', '_ex_start_bci'],
+    ['I', 'I', 'int', '_ex_limit_bci'],
+]
+
+CI_OBJECT = [
+   ['Q', 'I', 'uint', '_ident'],
+   ['Q', 'I', 'jobject', '_handle'],
+   ['Q', 'I', 'ciKlass*', '_klass'],
+
+]
+
+CI_METHOD_BLOCKS = [
+    ['I', 'I', 'ciMethod *', '_method'],
+    ['I', 'I', 'Arena *', '_arena'],
+    ['I', 'I', 'GrowableArray<ciBlock *>*', '_blocks'],
+    ['I', 'I', 'ciBlock**', '_bci_to_block'],
+    ['I', 'I', 'int', '_num_blocks'],
+    ['I', 'I', 'int', '_code_size'],
+]
+
+CI_METHOD_TYPE = [
+  ['I', 'I', 'uint', '_ident'],
+  ['Q', 'I', 'Metadata*', '_metadata'],
+  ['I', 'I', 'ciFlags', '_flags'],
+  ['Q', 'I', 'ciSymbol*', '_name'],
+  ['Q', 'I', 'ciInstanceKlass*', '_holder'],
+  ['Q', 'I', 'ciSignature*', '_signature'],
+  ['Q', 'I', 'ciMethodData*', '_method_data'],
+  ['Q', 'I', 'ciMethodBlocks*', '_method_blocks'],
+  ['I', 'I', 'int', '_code_size'],
+  ['I', 'I', 'int', '_max_stack'],
+  ['I', 'I', 'int', '_max_locals'],
+  ['I', 'I', 'vmIntrinsics::ID' , '_intrinsic_id'],
+  ['I', 'I', 'int', '_handler_count'],
+  ['I', 'I', 'int', '_interpreter_invocation_count'],
+  ['I', 'I', 'int', '_interpreter_throwout_count'],
+  ['I', 'I', 'int', '_instructions_size'],
+  ['I', 'I', 'int', '_size_of_parameters'],
+  ['I', 'B', 'bool', '_uses_monitors'],
+  ['I', 'B', 'bool', '_balanced_monitors'],
+  ['I', 'B', 'bool', '_is_c1_compilable'],
+  ['I', 'B', 'bool', '_is_c2_compilable'],
+  ['3B', '3B', 'bool', 'word_padding'],
+  ['B', 'B', 'bool', '_can_be_statically_bound'],
+  ['Q', 'I', 'address', '_code'],
+  ['Q', 'I', 'ciExceptionHandler**', '_exception_handlers'],
+  ['Q', 'I', 'MethodLiveness*', '_liveness'],
+  ['Q', 'I', 'ciTypeFlow*', '_flow'],
+  ['Q', 'I', 'BCEscapeAnalyzer*', '_bcea'],
+]
+
+CI_KLASS_INSTANCE_TYPE = [
+  ['I', 'I', 'uint', '_ident'],
+  ['Q', 'I', 'Metadata*', '_metadata'],
+  ['I', 'I', 'BasicType', '_basic_type'],
+  ['Q', 'I', 'ciSymbol*', '_name'],
+  ['I', 'I', 'jint', '_layout_helper'],
+  ['I', 'I', 'jobject', '_loader'],
+  ['I', 'I', 'jobject', '_protection_domain'],
+  ['I', 'I', 'InstanceKlass::ClassState', '_init_state'],
+  ['B', 'B', 'bool', '_is_shared'],
+  ['B', 'B', 'bool', '_has_finalizer'],
+  ['B', 'B', 'bool', '_has_subklass'],
+  ['B', 'B', 'bool', '_has_nonstatic_fields'],
+  ['3B', '3B', 'bool', 'word_padding'],
+  ['B', 'B', 'bool', '_has_default_methods'],
+  ['I', 'I', 'ciFlags', '_flags'],
+  ['I', 'I', 'jint', '_nonstatic_field_size'],
+  ['I', 'I', 'jint', '_nonstatic_oop_map_size'],
+  ['I', 'I', 'ciInstanceKlass*', '_super'],
+  ['I', 'I', 'ciInstance*', '_java_mirror'],
+  ['I', 'I', 'ciConstantPoolCache*', '_field_cache'],
+  ['I', 'I', 'GrowableArray<ciField*>*', '_nonstatic_fields'],
+  ['I', 'I', 'ciInstanceKlass*', '_implementor'],
+  ['I', 'I', 'GrowableArray<ciField*>*', '_non_static_fields'],
+]
+
+
 METHOD_DATA_META_TYPE = [
     ['I', 'Q', 'void*', 'vtable'],
     ['I', 'Q', 'Method*', 'method'],
@@ -307,6 +430,19 @@ CONSTANT_POOL_META_TYPE = [
 ]
 
 
+METHOD_COUNTERS_META_TYPE = [
+    #['I', 'Q', 'void*', 'vtable'],
+    ['I', 'I', 'int', '_interpreter_invocation_count'],
+    ['H', 'H', 'u2', '_interpreter_throwout_count'],
+    ['H', 'H', 'u2', '_number_of_breakpoints'],
+    ['I', 'I', 'int', '_invocation_counter__counter'],
+    ['I', 'I', 'int', '_back_edge_counter__counter'],
+    ['f', 'f', 'float', '_rate'],
+    ['2B', '2B', 'PADDING', 'word_padding'],
+    ['B', 'B', 'u1', '_highest_comp_level'],
+    ['B', 'B', 'u1', '_highest_osr_level'],
+    ['Q', 'Q', 'jlong', '_prev_time'],
+]
 
 CONST_METHOD_META_TYPE = [
     #['I', 'Q', 'void*', 'vtable'],
@@ -544,6 +680,11 @@ SYMBOL_TYPE = [
     ['H', 'H', 'short', 'ref_count'],
     ['I', 'I', 'int', 'identity_hash'],
     ['B', 'B', 'char[]', 'jbyte'],
+]
+CI_SYMBOL_TYPE = [
+    ['I', 'I', 'uint', '_ident'],
+    ['Q', 'I', 'Symbol*', '_symbol'],
+    ['I', 'I', 'const vmSymbols::SID', '_sid'],
 ]
 
 VMSTRUCT_ENTRY_TYPE = [
@@ -892,7 +1033,26 @@ JNI_HANDLE_BLOCK_TYPE = [
     ['I', 'I', 'int', 'allocate_before_rebuild'],
 ]
 # TODO figure out how to fill in the frame anchor
-JAVA_CALL_WRAPPER_TYPE = [
+BYTECODE_INTERPRETER = [
+    ['I', 'Q', 'JavaThread*', 'thread'],
+    ['I', 'Q', 'address', '_bcp'],
+    ['I', 'Q', 'intptr_t*', '_locals'],
+    ['I', 'Q', 'ConstantPoolCache*', '_constants'],
+    ['I', 'Q', 'Method*', '_method'],
+    ['I', 'Q', 'DataLayout*', '_mdx'],
+    ['I', 'Q', 'intptr_t*', '_stack'],
+    ['I', 'Q', 'messages', '_msg'],
+    ['I', 'Q', 'frame_manager_message_dword1', 'dword2'],
+    ['I', 'Q', 'frame_manager_message_dword2', 'dword1'],
+    ['I', 'Q', 'frame_manager_message_dword3', 'dword3'],
+    ['I', 'Q', 'interpreterState', '_prev_link'],
+    ['I', 'Q', 'oop', '_oop_temp'],
+    ['I', 'Q', 'intptr_t*', '_stack_base'],
+    ['I', 'Q', 'intptr_t*', '_stack_limit'],
+    ['I', 'Q', 'BasicObjectLock*', '_monitor_base'],
+]
+
+JAVA_BYTE_CODE_INTERPRETER = [
     ['I', 'Q', 'JavaThread*', 'thread'],
     ['I', 'Q', 'JNIHandleBlock*', 'handles'],
     ['I', 'Q', 'Method*', 'callee_method'],
@@ -900,7 +1060,6 @@ JAVA_CALL_WRAPPER_TYPE = [
     ['I', 'Q', 'JavaFrameAnchor', 'anchor'],
     ['I', 'Q', 'JavaValue*', 'result'],
 ]
-
 # TODO figure out how to fill in the frame anchor
 JAVA_CALL_ARGUMENTS_TYPE = [
     ['9I', '9Q', 'intptr_t*', 'value_buffer'],
@@ -1053,7 +1212,12 @@ FRAME_VALUES = [
 ]
 
 VFRAME_ARRAY_ELEMENT = [
-    ['I', 'Q', 'frame', '_frame'],
+    ['I', 'Q', 'intptr_t*', 'sp'],
+    ['I', 'Q', 'address', 'pc'],
+    ['I', 'Q', 'CodeBlob*', 'cb'],
+    ['I', 'I', 'deopt_state', 'deopt_state'],
+    ['I', 'Q', 'intptr_t*', '_fp'],
+    ['I', 'Q', 'intptr_t*', '_unextended_sp'],
     ['I', 'Q', 'int',  '_bci'],
     ['I', 'Q', 'bool', '_reexecute'],
     ['I', 'Q', 'Method*',     '_method'],
@@ -1065,9 +1229,27 @@ VFRAME_ARRAY_ELEMENT = [
 VFRAME_ARRAY = [
     ['I', 'Q', 'JavaThread*', '_owner_thread'],
     ['I', 'Q', 'vframeArray*', '_next'],
-    ['I', 'Q', 'frame', '_original'],
-    ['I', 'Q', 'frame', '_caller'],
-    ['I', 'Q', 'frame', '_sender'],
+# frame original
+['I', 'Q', 'intptr_t*', '_original_sp'],
+['I', 'Q', 'address', '_original_pc'],
+['I', 'Q', 'CodeBlob*', '_original_cb'],
+['I', 'I', 'deopt_state', '_original_deopt_state'],
+['I', 'Q', 'intptr_t*', '_original__fp'],
+['I', 'Q', 'intptr_t*', '_original__unextended_sp'],
+# frame caller
+['I', 'Q', 'intptr_t*', '_caller_sp'],
+['I', 'Q', 'address', '_caller_pc'],
+['I', 'Q', 'CodeBlob*', '_caller_cb'],
+['I', 'I', 'deopt_state', '_caller_deopt_state'],
+['I', 'Q', 'intptr_t*', '_caller__fp'],
+['I', 'Q', 'intptr_t*', '_caller__unextended_sp'],
+# frame sender
+['I', 'Q', 'intptr_t*', '_sender_sp'],
+['I', 'Q', 'address', '_sender_pc'],
+['I', 'Q', 'CodeBlob*', '_sender_cb'],
+['I', 'I', 'deopt_state', '_sender_deopt_state'],
+['I', 'Q', 'intptr_t*', '_sender__fp'],
+['I', 'Q', 'intptr_t*', '_sender__unextended_sp'],
     ['I', 'Q', 'Deoptimization::UnrollBlock*', '_unroll_block'],
     ['I', 'Q', 'int', '_frame_size'],
     ['I', 'Q', 'int', '_frames'],

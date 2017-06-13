@@ -15,6 +15,8 @@ from jvm_templates import ArrayT, ARRAY_MAP
 from jvm_meta import ConstantPool
 from jvm_base import BaseOverlay
 
+
+RESTRICT_CLASS_PARSING = False
 BASIC_TYPE_INFO = {
   'T_BOOLEAN': 4, 'T_CHAR': 5, 'T_FLOAT': 6, 'T_DOUBLE': 7, 'T_BYTE': 8,
   'T_SHORT': 9, 'T_INT':10, 'T_LONG':11, 'T_OBJECT':12, 'T_ARRAY':13,
@@ -48,6 +50,14 @@ PRIMITIVES_KLASSES_SET = set(PRIMITIVES_KLASSES)
 #FIELD_INITIAL_VAL = 0
 #FIELD_LOW_OFF = 0
 #FIELD_HIGH_OFF = 0
+
+def is_restrict_klass_parsing(flag=True):
+    global RESTRICT_CLASS_PARSING
+    return RESTRICT_CLASS_PARSING
+
+def restrict_klass_parsing(flag=True):
+    global RESTRICT_CLASS_PARSING
+    RESTRICT_CLASS_PARSING = flag
 
 def get_klass_info(addr, jvm_analysis):
     # check the klass and extract key info to determine
@@ -201,8 +211,10 @@ class Klass(BaseOverlay):
                 return ObjArrayKlass.from_jva(addr, jva)
             else:
                 return TypeArrayKlass.from_jva(addr, jva)
-        elif klass_info['is_instance']:
+        elif not RESTRICT_CLASS_PARSING and klass_info['is_instance']:
             return KlassInstance.from_jva(addr, jva)
+        elif RESTRICT_CLASS_PARSING:
+            raise Exception("Klass parsing has been restricted, set jvm_klass.RESTRICT_CLASS_PARSING=False to re-enable")
 
         kargs = {"addr":addr, "jvm_analysis":jvm_analysis, 'updated':False,
                  "ooptype":'klassOop', 'metatype':'',

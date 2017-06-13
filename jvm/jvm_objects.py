@@ -9,7 +9,9 @@ from jvm_overlays import VMSTRUCT_ENTRY_TYPE, GEN_COLLECTED_HEAP_TYPE,\
                         JAVA_FRAME_ANCHOR, JAVA_CALL_VALUE, JAVA_CALL_WRAPPER,\
                         JAVA_THREAD_PARTIAL, CODE_BLOB, OOP_MAP_VALUE, OOP_MAP,\
                         OOP_MAP_SET, FRAME, FRAME_VALUE, FRAME_VALUES,\
-                        VFRAME_ARRAY, VFRAME_ARRAY_ELEMENT
+                        VFRAME_ARRAY, VFRAME_ARRAY_ELEMENT, BYTECODE_INTERPRETER, \
+                        CI_SYMBOL_TYPE, CI_KLASS_INSTANCE_TYPE, CI_METHOD_TYPE,\
+                        CI_METHOD_BLOCKS, CI_METHOD_BLOCK, CI_OBJECT
 
 from jvm_overlays import get_bits32, get_bits64, get_named_array32, \
                          get_named_array64, get_field_types, name_fields,\
@@ -599,3 +601,82 @@ class VFrameArrayElement(BaseOverlay):
     size64 = get_size64(VFRAME_ARRAY_ELEMENT)
     types = get_field_types(VFRAME_ARRAY_ELEMENT)
 
+class BytecodeInterpreter(BaseOverlay):
+    _name = "BytecodeInterpreter"
+    _overlay = BYTECODE_INTERPRETER
+    bits32 = get_bits32(BYTECODE_INTERPRETER)
+    bits64 = get_bits64(BYTECODE_INTERPRETER)
+    named32 = get_named_array32(BYTECODE_INTERPRETER)
+    named64 = get_named_array64(BYTECODE_INTERPRETER)
+    size32 = get_size32(BYTECODE_INTERPRETER)
+    size64 = get_size64(BYTECODE_INTERPRETER)
+    types = get_field_types(BYTECODE_INTERPRETER)
+
+class ciSymbol(BaseOverlay):
+    _name = "ciSymbol"
+    _overlay = CI_SYMBOL_TYPE
+    bits32 = get_bits32(CI_SYMBOL_TYPE)
+    bits64 = get_bits64(CI_SYMBOL_TYPE)
+    named32 = get_named_array32(CI_SYMBOL_TYPE)
+    named64 = get_named_array64(CI_SYMBOL_TYPE)
+    size32 = get_size32(CI_SYMBOL_TYPE)
+    size64 = get_size64(CI_SYMBOL_TYPE)
+    types = get_field_types(CI_SYMBOL_TYPE)
+
+class ciMethod(BaseOverlay):
+    _name = "ciMethod"
+    _overlay = CI_METHOD_TYPE
+    bits32 = get_bits32(CI_METHOD_TYPE)
+    bits64 = get_bits64(CI_METHOD_TYPE)
+    named32 = get_named_array32(CI_METHOD_TYPE)
+    named64 = get_named_array64(CI_METHOD_TYPE)
+    size32 = get_size32(CI_METHOD_TYPE)
+    size64 = get_size64(CI_METHOD_TYPE)
+    types = get_field_types(CI_METHOD_TYPE)
+
+class ciKlassInstance(BaseOverlay):
+    _name = "ciKlassInstance"
+    _overlay = CI_KLASS_INSTANCE_TYPE
+    bits32 = get_bits32(CI_KLASS_INSTANCE_TYPE)
+    bits64 = get_bits64(CI_KLASS_INSTANCE_TYPE)
+    named32 = get_named_array32(CI_KLASS_INSTANCE_TYPE)
+    named64 = get_named_array64(CI_KLASS_INSTANCE_TYPE)
+    size32 = get_size32(CI_KLASS_INSTANCE_TYPE)
+    size64 = get_size64(CI_KLASS_INSTANCE_TYPE)
+    types = get_field_types(CI_KLASS_INSTANCE_TYPE)
+
+
+class ciMethodBlocks(BaseOverlay):
+    _name = "ciMethodBlocks"
+    _overlay = CI_METHOD_BLOCKS
+    bits32 = get_bits32(CI_METHOD_BLOCKS)
+    bits64 = get_bits64(CI_METHOD_BLOCKS)
+    named32 = get_named_array32(CI_METHOD_BLOCKS)
+    named64 = get_named_array64(CI_METHOD_BLOCKS)
+    size32 = get_size32(CI_METHOD_BLOCKS)
+    size64 = get_size64(CI_METHOD_BLOCKS)
+    types = get_field_types(CI_METHOD_BLOCKS)
+
+
+class ciMethodBlock(BaseOverlay):
+    _name = "ciMethodBlock"
+    _overlay = CI_METHOD_BLOCK
+    bits32 = get_bits32(CI_METHOD_BLOCK)
+    bits64 = get_bits64(CI_METHOD_BLOCK)
+    named32 = get_named_array32(CI_METHOD_BLOCK)
+    named64 = get_named_array64(CI_METHOD_BLOCK)
+    size32 = get_size32(CI_METHOD_BLOCK)
+    size64 = get_size64(CI_METHOD_BLOCK)
+    types = get_field_types(CI_METHOD_BLOCK)
+
+
+class ciObject(BaseOverlay):
+    _name = "ciObject"
+    _overlay = CI_OBJECT
+    bits32 = get_bits32(CI_OBJECT)
+    bits64 = get_bits64(CI_OBJECT)
+    named32 = get_named_array32(CI_OBJECT)
+    named64 = get_named_array64(CI_OBJECT)
+    size32 = get_size32(CI_OBJECT)
+    size64 = get_size64(CI_OBJECT)
+    types = get_field_types(CI_OBJECT)
